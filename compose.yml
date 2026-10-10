@@ -1,0 +1,14 @@
+# Local development database ONLY; production should use an authenticated replica set.
+services:
+  mongo:
+    image: mongo:8
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["127.0.0.1:27017:27017"]
+    volumes: ["mongo-data:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ping:1})"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  mongo-data:

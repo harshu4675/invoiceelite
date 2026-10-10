@@ -1,0 +1,29 @@
+name: Verify InvoiceElite
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:ui
+      - run: npm audit --audit-level=high
+      - name: Start disposable MongoDB replica set
+        run: |
+          docker run -d --name invoiceelite-test-mongo -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            if docker exec invoiceelite-test-mongo mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
+            sleep 2
+          done
+          docker exec invoiceelite-test-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+      - run: npm run test:integration
+        env:
+          TEST_MONGODB_URI: mongodb://127.0.0.1:27017/invoiceelite_test?replicaSet=rs0
